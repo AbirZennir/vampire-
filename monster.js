@@ -1,4 +1,3 @@
-// Monstres qui chassent le héros et évitent les obstacles
 class Monster extends Vehicle {
   constructor(x, y) {
     super(x, y);
@@ -8,20 +7,15 @@ class Monster extends Vehicle {
     this.r = 14;
 
     this.health = 20;
-
     this.detectionRadius = 200;
     this.fireDelay = 50;
     this.fireCooldown = 0;
   }
 
   autoShoot(hero) {
-    if (this.fireCooldown > 0) {
-      this.fireCooldown--;
-      return;
-    }
+    if (this.fireCooldown > 0) { this.fireCooldown--; return; }
     let d = p5.Vector.dist(this.pos, hero.pos);
     if (d > this.detectionRadius) return;
-
     missiles.push(new Missile(this.pos.x, this.pos.y, hero, false));
     this.fireCooldown = this.fireDelay;
   }
@@ -42,7 +36,18 @@ class Monster extends Vehicle {
     this.autoShoot(hero);
   }
 
+  // ✅ DESIGN ONLY
   show() {
-    super.show(color(255, 80, 80)); // rouge
+    push();
+    translate(this.pos.x, this.pos.y);
+    if (this.vel.magSq() > 0.0001) rotate(this.vel.heading());
+
+    let pulse = 1 + 0.02 * sin(frameCount * 0.10);
+
+    imageMode(CENTER);
+    let s = this.r * 3.6 * pulse;
+    image(monsterImg, 0, 0, s, s);
+
+    pop();
   }
 }

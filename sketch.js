@@ -6,7 +6,10 @@ let hero;
 let monsters = [];
 let missiles = [];
 let obstacles = [];
-let gems = [];        // 👈 nouveau tableau
+let gems = [];
+
+// sprites preload
+let heroImg, monsterImg, obstacleImg;
 
 // slider pour le nombre de monstres
 let monsterSlider;
@@ -15,15 +18,23 @@ let score = 0;
 let gameOver = false;
 let gameWin = false;
 
+function preload() {
+  heroImg = loadImage("assets/hero.png");
+  monsterImg = loadImage("assets/monster.png");
+  obstacleImg = loadImage("assets/obstacle.png");
+}
+
 function setup() {
   createCanvas(800, 800);
 
   hero = new Hero(width / 2, height / 2);
 
-  // slider : nombre de monstres (0 → 20, valeur initiale 6)
+  // ✅ Slider propre (gauche) + style
   monsterSlider = createSlider(0, 20, 6, 1);
-  monsterSlider.position(10, 70);
-  monsterSlider.style("width", "150px");
+  monsterSlider.id("monsterSlider");
+  monsterSlider.position(26, 62);        // gauche, bien aligné
+  monsterSlider.style("width", "220px");
+  applyModernSliderStyle(monsterSlider);
 
   for (let i = 0; i < monsterSlider.value(); i++) {
     addMonsterRandom();
@@ -35,15 +46,16 @@ function setup() {
   obstacles.push(new Obstacle(550, 600, 35));
 }
 
-// ajoute un monstre à une position aléatoire
 function addMonsterRandom() {
-  let x = random(width);
-  let y = random(height);
-  monsters.push(new Monster(x, y));
+  monsters.push(new Monster(random(width), random(height)));
 }
 
 function draw() {
-  background(20);
+  // fond moderne (léger)
+  background(14, 16, 26);
+  noStroke();
+  fill(10, 12, 20, 120);
+  rect(0, 0, width, height);
 
   adjustMonstersWithSlider();
 
@@ -53,9 +65,7 @@ function draw() {
   }
 
   // Obstacles
-  for (let o of obstacles) {
-    o.show();
-  }
+  for (let o of obstacles) o.show();
 
   // HERO
   hero.applyBehaviors(monsters, obstacles);
@@ -64,7 +74,7 @@ function draw() {
   hero.resolveObstacleCollisions(obstacles);
   hero.show();
 
-  // GEMS (avant les monstres ou après, peu importe tant qu'on update)
+  // GEMS
   for (let i = gems.length - 1; i >= 0; i--) {
     let g = gems[i];
     g.update(hero);
@@ -72,10 +82,9 @@ function draw() {
     g.resolveObstacleCollisions(obstacles);
     g.show();
 
-    // collision gem ↔ héros -> heal + score
     if (g.collidesWith(hero)) {
-      hero.health = min(hero.health + 20, 100); // heal max 100
-      score += 5;                               // bonus score
+      hero.health = min(hero.health + 20, 100);
+      score += 5;
       gems.splice(i, 1);
     }
   }
@@ -92,9 +101,7 @@ function draw() {
 
     if (m.collidesWith(hero)) {
       hero.health -= 0.3;
-      if (hero.health <= 0) {
-        gameOver = true;
-      }
+      if (hero.health <= 0) gameOver = true;
     }
   }
 
@@ -106,7 +113,7 @@ function draw() {
     miss.keepInside();
     miss.show();
 
-    // 1) missile touche un obstacle → il s'arrête
+    // missile touche un obstacle
     let hitObstacle = false;
     for (let o of obstacles) {
       if (miss.collidesWith(o)) {
@@ -119,21 +126,19 @@ function draw() {
       continue;
     }
 
-    // 2) durée de vie écoulée
+    // durée de vie
     if (miss.isDead()) {
       missiles.splice(i, 1);
       continue;
     }
 
-    // 3) collisions missile ↔ monstres / héros
+    // collisions missile ↔ monstres / héros
     if (miss.isFromHero) {
-      // missile du héros touche un monstre
       for (let j = monsters.length - 1; j >= 0; j--) {
         let m = monsters[j];
         if (miss.collidesWith(m)) {
-          // 🔷 création de la gem à la position du monstre
           let gem = new Gem(m.pos.x, m.pos.y);
-          gem.autoCollect = true;   // la gem vient direct vers le héros
+          gem.autoCollect = true;
           gems.push(gem);
 
           monsters.splice(j, 1);
@@ -143,18 +148,14 @@ function draw() {
         }
       }
     } else {
-      // missile d'un monstre touche le héros
       if (miss.collidesWith(hero)) {
         hero.health -= 10;
         missiles.splice(i, 1);
-        if (hero.health <= 0) {
-          gameOver = true;
-        }
+        if (hero.health <= 0) gameOver = true;
       }
     }
   }
 
-  // victoire si plus de monstres et slider à 0
   if (monsters.length === 0 && monsterSlider.value() === 0) {
     gameWin = true;
   }
@@ -164,57 +165,74 @@ function draw() {
 
 function adjustMonstersWithSlider() {
   const desired = monsterSlider.value();
-
-  while (monsters.length < desired) {
-    addMonsterRandom();
-  }
-  while (monsters.length > desired) {
-    monsters.pop();
-  }
+  while (monsters.length < desired) addMonsterRandom();
+  while (monsters.length > desired) monsters.pop();
 }
 
+// ✅ HUD style "2ème image": card centrée en haut + barre vie
 function drawHUD() {
   push();
-  fill(255);
-  noStroke();
-  textSize(16);
+
+  // label slider (gauche)
+  fill(255, 255, 255, 190);
+  textSize(13);
   textAlign(LEFT, TOP);
-  text("Score : " + score, 10, 10);
-  text("Vie héro : " + hero.health.toFixed(0), 10, 30);
-  text("Monstres restants : " + monsters.length, 10, 50);
-  text("Nb monstres (slider) :", 10, 90);
+  text("Nb monstres", 26, 38);
+
+  // card centrée
+  const cardW = 280;
+  const cardH = 92;
+  const cardX = width / 2 - cardW / 2;
+  const cardY = 14;
+
+  noStroke();
+  fill(0, 0, 0, 125);
+  rect(cardX, cardY, cardW, cardH, 14);
+
+  fill(255);
+  textSize(14);
+  textAlign(LEFT, TOP);
+
+  text("Score : " + score, cardX + 16, cardY + 14);
+  text("Monstres : " + monsters.length, cardX + 16, cardY + 34);
+
+  // barre de vie
+  let hp = constrain(hero.health, 0, 100);
+
+  fill(255, 255, 255, 70);
+  rect(cardX + 16, cardY + 58, cardW - 32, 12, 10);
+
+  fill(80, 220, 120);
+  rect(cardX + 16, cardY + 58, (cardW - 32) * (hp / 100), 12, 10);
+
+  fill(255, 255, 255, 180);
+  text("Vie : " + hp.toFixed(0), cardX + 16, cardY + 74);
+
   pop();
 }
 
 function drawEndScreen() {
-  background(20, 20, 20, 230);
+  background(0, 0, 0, 190);
   drawHUD();
 
   push();
   textAlign(CENTER, CENTER);
   textSize(32);
   fill(255);
-  if (gameWin) {
-    text("🏆 YOU WIN !", width / 2, height / 2);
-  } else {
-    text("💀 GAME OVER", width / 2, height / 2);
-  }
+  text(gameWin ? "🏆 YOU WIN !" : "💀 GAME OVER", width / 2, height / 2);
   textSize(16);
-  text("Appuie sur 'r' pour recommencer", width / 2, height / 2 + 40);
+  fill(255, 255, 255, 200);
+  text("Appuie sur 'r' pour recommencer", width / 2, height / 2 + 42);
   pop();
 }
 
 function keyPressed() {
-  if (key === "r" || key === "R") {
-    resetGame();
-  }
+  if (key === "r" || key === "R") resetGame();
 }
 
-// CLIC : ajouter un obstacle
 function mousePressed() {
   if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
-    let r = random(25, 60);
-    obstacles.push(new Obstacle(mouseX, mouseY, r));
+    obstacles.push(new Obstacle(mouseX, mouseY, random(25, 60)));
   }
 }
 
@@ -234,7 +252,39 @@ function resetGame() {
   obstacles.push(new Obstacle(300, 550, 50));
   obstacles.push(new Obstacle(550, 600, 35));
 
-  for (let i = 0; i < monsterSlider.value(); i++) {
-    addMonsterRandom();
-  }
+  for (let i = 0; i < monsterSlider.value(); i++) addMonsterRandom();
+}
+
+// ✅ style slider moderne
+function applyModernSliderStyle(sl) {
+  sl.style("appearance", "none");
+  sl.style("-webkit-appearance", "none");
+  sl.style("height", "8px");
+  sl.style("border-radius", "999px");
+  sl.style("background", "rgba(255,255,255,0.18)");
+  sl.style("outline", "none");
+
+  const style = document.createElement("style");
+  style.innerHTML = `
+    #monsterSlider::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      appearance:none;
+      width:18px;height:18px;border-radius:50%;
+      background:#38bdf8;
+      border:2px solid rgba(255,255,255,0.9);
+      box-shadow:0 0 18px rgba(56,189,248,0.55);
+      cursor:pointer;
+      transition:transform 0.15s ease;
+    }
+    #monsterSlider::-webkit-slider-thumb:hover{ transform:scale(1.08); }
+
+    #monsterSlider::-moz-range-thumb{
+      width:18px;height:18px;border-radius:50%;
+      background:#38bdf8;
+      border:2px solid rgba(255,255,255,0.9);
+      box-shadow:0 0 18px rgba(56,189,248,0.55);
+      cursor:pointer;
+    }
+  `;
+  document.head.appendChild(style);
 }
