@@ -1,6 +1,12 @@
 // =======================
-//      sketch.js
+//        sketch.js
 // =======================
+// Fichier principal :
+// - initialise (setup)
+// - boucle de simulation (draw)
+// - gère l'UI (HUD)
+// - gère les entrées (clavier/souris)
+// - orchestre Hero / Monster / Missile / Obstacle / Gem
 
 let hero;
 let monsters = [];
@@ -8,74 +14,78 @@ let missiles = [];
 let obstacles = [];
 let gems = [];
 
-// sprites preload
+// sprites (design uniquement)
 let heroImg, monsterImg, obstacleImg;
 
-// slider pour le nombre de monstres
+// UI : slider nombre de monstres
 let monsterSlider;
 
+// état du jeu
 let score = 0;
 let gameOver = false;
 let gameWin = false;
 
+// Chargement des images (appelé avant setup)
 function preload() {
   heroImg = loadImage("assets/hero.png");
   monsterImg = loadImage("assets/monster.png");
   obstacleImg = loadImage("assets/obstacle.png");
 }
 
+// Initialisation
 function setup() {
   createCanvas(800, 800);
 
+  // création du héros
   hero = new Hero(width / 2, height / 2);
 
-  // ✅ Slider à gauche + style
+  // slider (UI)
   monsterSlider = createSlider(0, 20, 6, 1);
   monsterSlider.id("monsterSlider");
   monsterSlider.position(26, 62);
   monsterSlider.style("width", "240px");
   applyModernSliderStyle(monsterSlider);
 
-  // init monsters
+  // crée les monstres initiaux selon le slider
   for (let i = 0; i < monsterSlider.value(); i++) addMonsterRandom();
 
-  // init obstacles
+  // obstacles initiaux
   obstacles.push(new Obstacle(200, 200, 40));
   obstacles.push(new Obstacle(600, 250, 60));
   obstacles.push(new Obstacle(300, 550, 50));
   obstacles.push(new Obstacle(550, 600, 35));
 }
 
-// ajoute un monstre à une position aléatoire
+// Ajoute un monstre à une position aléatoire
 function addMonsterRandom() {
   monsters.push(new Monster(random(width), random(height)));
 }
 
+// Boucle principale
 function draw() {
-  // fond moderne léger
+  // background (design uniquement)
   background(14, 16, 26);
   noStroke();
   fill(10, 12, 20, 120);
   rect(0, 0, width, height);
 
+  // ajuste le nombre de monstres selon le slider
   adjustMonstersWithSlider();
 
-  if (gameOver || gameWin) {
-    drawEndScreen();
-    return;
-  }
+  // écran de fin
+  if (gameOver || gameWin) return drawEndScreen();
 
-  // Obstacles
+  // obstacles
   for (let o of obstacles) o.show();
 
-  // HERO
+  // HERO : comportements + mouvement + collisions + affichage
   hero.applyBehaviors(monsters, obstacles);
   hero.update();
   hero.keepInside();
   hero.resolveObstacleCollisions(obstacles);
   hero.show();
 
-  // GEMS
+  // GEMS : attraction + collisions + collecte
   for (let i = gems.length - 1; i >= 0; i--) {
     let g = gems[i];
     g.update(hero);
@@ -83,7 +93,7 @@ function draw() {
     g.resolveObstacleCollisions(obstacles);
     g.show();
 
-    // collision gem ↔ héros -> heal + score
+    // collecte gem -> heal + score
     if (g.collidesWith(hero)) {
       hero.health = min(hero.health + 20, 100);
       score += 5;
@@ -91,7 +101,7 @@ function draw() {
     }
   }
 
-  // MONSTRES
+  // MONSTRES : comportements + mouvement + collisions + dégâts contact
   for (let i = monsters.length - 1; i >= 0; i--) {
     let m = monsters[i];
 
@@ -107,7 +117,7 @@ function draw() {
     }
   }
 
-  // MISSILES
+  // MISSILES : update + collisions obstacles + collisions entités + suppression
   for (let i = missiles.length - 1; i >= 0; i--) {
     let miss = missiles[i];
 
@@ -115,31 +125,19 @@ function draw() {
     miss.keepInside();
     miss.show();
 
-    // 1) missile touche un obstacle → il s'arrête
+    // missile touche un obstacle -> supprimé
     let hitObstacle = false;
-    for (let o of obstacles) {
-      if (miss.collidesWith(o)) {
-        hitObstacle = true;
-        break;
-      }
-    }
-    if (hitObstacle) {
-      missiles.splice(i, 1);
-      continue;
-    }
+    for (let o of obstacles) if (miss.collidesWith(o)) { hitObstacle = true; break; }
+    if (hitObstacle) { missiles.splice(i, 1); continue; }
 
-    // 2) durée de vie écoulée
-    if (miss.isDead()) {
-      missiles.splice(i, 1);
-      continue;
-    }
+    // durée de vie finie
+    if (miss.isDead()) { missiles.splice(i, 1); continue; }
 
-    // 3) collisions missile ↔ monstres / héros
+    // missile du héros -> tue monstre + gem autoCollect
     if (miss.isFromHero) {
       for (let j = monsters.length - 1; j >= 0; j--) {
         let m = monsters[j];
         if (miss.collidesWith(m)) {
-          // création gem à la position du monstre
           let gem = new Gem(m.pos.x, m.pos.y);
           gem.autoCollect = true;
           gems.push(gem);
@@ -151,6 +149,7 @@ function draw() {
         }
       }
     } else {
+      // missile du monstre -> dégâts héros
       if (miss.collidesWith(hero)) {
         hero.health -= 10;
         missiles.splice(i, 1);
@@ -159,34 +158,32 @@ function draw() {
     }
   }
 
-  // victoire si plus de monstres et slider à 0
+  // victoire si tous les monstres sont éliminés ET slider=0
   if (monsters.length === 0 && monsterSlider.value() === 0) gameWin = true;
 
+  // UI
   drawHUD();
 }
 
+// Ajuste dynamiquement monsters[] pour coller au slider
 function adjustMonstersWithSlider() {
   const desired = monsterSlider.value();
   while (monsters.length < desired) addMonsterRandom();
   while (monsters.length > desired) monsters.pop();
 }
 
-// ✅ HUD: card centrée + slider + "comment jouer" sous le slider (à gauche)
+// HUD : score/vie au centre + aide sous le slider à gauche
 function drawHUD() {
   push();
 
-  // ---- Label slider
+  // label slider
   fill(255, 255, 255, 190);
   textSize(13);
   textAlign(LEFT, TOP);
   text("Nb monstres", 26, 38);
 
-  // ---- Card centrée (score/vie)
-  const cardW = 300;
-  const cardH = 92;
-  const cardX = width / 2 - cardW / 2;
-  const cardY = 14;
-
+  // card centrée
+  const cardW = 300, cardH = 92, cardX = width / 2 - cardW / 2, cardY = 14;
   noStroke();
   fill(0, 0, 0, 125);
   rect(cardX, cardY, cardW, cardH, 14);
@@ -201,20 +198,13 @@ function drawHUD() {
   let hp = constrain(hero.health, 0, 100);
   fill(255, 255, 255, 70);
   rect(cardX + 16, cardY + 58, cardW - 32, 12, 10);
-
   fill(80, 220, 120);
   rect(cardX + 16, cardY + 58, (cardW - 32) * (hp / 100), 12, 10);
-
   fill(255, 255, 255, 180);
   text("Vie : " + hp.toFixed(0), cardX + 16, cardY + 74);
 
-  // ---- ✅ COMMENT JOUER (VRAIMENT sous le slider, même colonne)
-  const helpW = 240;  // même largeur que slider
-  const helpH = 120;
-  const helpX = 26;   // même X que slider
-  const helpY = 92;   // juste sous le slider (sliderY=62)
-
-  noStroke();
+  // panneau "Comment jouer" (sous slider)
+  const helpW = 240, helpH = 120, helpX = 26, helpY = 92;
   fill(0, 0, 0, 110);
   rect(helpX, helpY, helpW, helpH, 14);
 
@@ -224,8 +214,8 @@ function drawHUD() {
 
   fill(255, 255, 255, 170);
   textSize(12);
-  text("• Déplace le héros : souris", helpX + 12, helpY + 34);
-  text("• Le héros tire automatiquement", helpX + 12, helpY + 50);
+  text("• Souris : déplacer le héros", helpX + 12, helpY + 34);
+  text("• Tir auto si monstre proche", helpX + 12, helpY + 50);
   text("• Clic : ajouter un obstacle", helpX + 12, helpY + 66);
   text("• Slider : nb de monstres", helpX + 12, helpY + 82);
   text("• R : recommencer", helpX + 12, helpY + 98);
@@ -233,6 +223,7 @@ function drawHUD() {
   pop();
 }
 
+// Écran de fin
 function drawEndScreen() {
   background(0, 0, 0, 190);
   drawHUD();
@@ -242,29 +233,24 @@ function drawEndScreen() {
   textSize(34);
   fill(255);
   text(gameWin ? "🏆 YOU WIN !" : "💀 GAME OVER", width / 2, height / 2 - 10);
-
   textSize(15);
   fill(255, 255, 255, 190);
   text("Appuie sur 'r' pour recommencer", width / 2, height / 2 + 30);
-
-  textSize(12);
-  fill(255, 255, 255, 140);
-  text("Souris = bouger | Clic = obstacle | Slider = monstres | R = restart", width / 2, height / 2 + 55);
   pop();
 }
 
+// Clavier : reset
 function keyPressed() {
   if (key === "r" || key === "R") resetGame();
 }
 
-// CLIC : ajouter un obstacle
+// Souris : ajout obstacle (dans le canvas uniquement)
 function mousePressed() {
-  if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
-    let r = random(25, 60);
-    obstacles.push(new Obstacle(mouseX, mouseY, r));
-  }
+  if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height)
+    obstacles.push(new Obstacle(mouseX, mouseY, random(25, 60)));
 }
 
+// Reset complet (sans toucher au slider)
 function resetGame() {
   score = 0;
   gameOver = false;
@@ -284,7 +270,7 @@ function resetGame() {
   for (let i = 0; i < monsterSlider.value(); i++) addMonsterRandom();
 }
 
-// ✅ style slider moderne
+// Style moderne du slider (UI uniquement)
 function applyModernSliderStyle(sl) {
   sl.style("appearance", "none");
   sl.style("-webkit-appearance", "none");
@@ -306,7 +292,6 @@ function applyModernSliderStyle(sl) {
       transition:transform 0.15s ease;
     }
     #monsterSlider::-webkit-slider-thumb:hover{ transform:scale(1.08); }
-
     #monsterSlider::-moz-range-thumb{
       width:18px;height:18px;border-radius:50%;
       background:#38bdf8;

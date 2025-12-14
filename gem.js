@@ -1,54 +1,63 @@
 // =======================
 //         gem.js
 // =======================
+// Une Gem est un Vehicle spécial :
+// - apparaît quand un monstre meurt
+// - peut être attirée par le héros 
+// - augmente la vie et le score quand elle est collectée
 
 class Gem extends Vehicle {
   constructor(x, y) {
-    super(x, y);
+    super(x, y); // initialise position, vitesse, accélération (Vehicle)
 
-    this.maxSpeed = 6;       // plus rapide qu'avant
-    this.maxForce = 0.35;    // meilleure accélération
-    this.r = 7;
+    this.maxSpeed = 6;        // vitesse max de déplacement
+    this.maxForce = 0.35;     // force maximale appliquée
+    this.r = 7;               // rayon (collision + dessin)
 
-    this.detectionRadius = 180; // activation du magnet
-    this.autoCollect = false;
+    this.detectionRadius = 180; // distance d’activation de l’effet aimant
+    this.autoCollect = false;   // true => va directement vers le héros
 
-    this.trail = []; // pour laisser une traînée lumineuse
+    this.trail = []; // positions précédentes pour l’effet visuel
   }
 
+  // Comportement principal : attraction vers le héros (arrival)
   applyBehaviors(hero) {
-    let force = createVector(0, 0);
+    let force = createVector(0, 0); // force totale appliquée à la gem
 
-    const d = p5.Vector.dist(this.pos, hero.pos);
+    const d = p5.Vector.dist(this.pos, hero.pos); // distance gem ↔ héros
 
-    // Mode aimant (magnétique)
+    // Si le héros est proche OU autoCollect activé
     if (d < this.detectionRadius || this.autoCollect) {
-      // Effet ARRIVAL custom stylé : accélération progressive
+
+      // Direction vers le héros
       let direction = p5.Vector.sub(hero.pos, this.pos);
-      let speedBoost = map(d, this.detectionRadius, 0, 0.1, 2.5); // + boost quand proche
+
+      // Variation progressive de la vitesse (arrival)
+      let speedBoost = map(d, this.detectionRadius, 0, 0.1, 2.5);
       direction.setMag(this.maxSpeed * speedBoost);
 
+      // Steering = direction désirée - vitesse actuelle
       let steer = p5.Vector.sub(direction, this.vel);
-      steer.limit(this.maxForce * 2); // double force d'arrivée
+      steer.limit(this.maxForce * 2); // arrivée plus dynamique
+
       force.add(steer);
     }
 
+    // Application finale de la force (Vehicle)
     this.applyForce(force);
   }
 
   update(hero) {
-    this.applyBehaviors(hero);
-    super.update();
+    this.applyBehaviors(hero); // attraction vers le héros
+    super.update();            // intégration vitesse + position
 
-    // ajouter la position pour l’effet TRAIL stylé
+    // Sauvegarde des positions pour la traînée visuelle
     this.trail.push(this.pos.copy());
-    if (this.trail.length > 15) {
-      this.trail.shift();
-    }
+    if (this.trail.length > 15) this.trail.shift();
   }
 
   show() {
-    // ---- Effet TRAIL stylé ----
+    //  Traînée lumineuse 
     push();
     noStroke();
     for (let i = 0; i < this.trail.length; i++) {
@@ -59,14 +68,15 @@ class Gem extends Vehicle {
     }
     pop();
 
-    // ---- GEM ----
+    //  Dessin de la gem 
     push();
     translate(this.pos.x, this.pos.y);
-    rotate(frameCount * 0.15); // rotation plus rapide
+    rotate(frameCount * 0.15); // rotation continue
     fill(0, 220, 255);
     stroke(255);
     strokeWeight(2);
 
+    // Forme losange
     beginShape();
     vertex(0, -this.r);
     vertex(this.r, 0);

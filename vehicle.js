@@ -1,28 +1,38 @@
-// Classe de base Vehicle utilisée par Hero, Monster et Missile
+// =======================
+//        vehicle.js
+// =======================
+// Classe de base Vehicle :
+// - utilisée par Hero, Monster, Missile et Gem
+// - gère le mouvement par forces (steering behaviors)
+// - fournit seek, arrive, avoid, separate
+
 class Vehicle {
+
   constructor(x, y) {
-    this.pos = createVector(x, y);
-    this.vel = p5.Vector.random2D();
-    this.acc = createVector(0, 0);
+    this.pos = createVector(x, y);       // position
+    this.vel = p5.Vector.random2D();     // vitesse initiale
+    this.acc = createVector(0, 0);       // accélération (forces accumulées)
 
-    this.maxSpeed = 3;
-    this.maxForce = 0.15;
+    this.maxSpeed = 3;                   // vitesse maximale
+    this.maxForce = 0.15;                // force maximale
 
-    this.r = 12; // rayon pour dessin + collisions
+    this.r = 12;                         // rayon (collision + dessin)
   }
 
+  // Ajoute une force à l’accélération
   applyForce(force) {
     this.acc.add(force);
   }
 
+  // Intégration physique (Euler)
   update() {
-    this.vel.add(this.acc);
-    this.vel.limit(this.maxSpeed);
-    this.pos.add(this.vel);
-    this.acc.mult(0);
+    this.vel.add(this.acc);              // vitesse += accélération
+    this.vel.limit(this.maxSpeed);       // limite de vitesse
+    this.pos.add(this.vel);              // position += vitesse
+    this.acc.mult(0);                    // reset des forces
   }
 
-  // Aller vers une cible
+  // Comportement seek : aller vers une cible
   seek(target) {
     let desired = p5.Vector.sub(target, this.pos);
     desired.setMag(this.maxSpeed);
@@ -32,7 +42,7 @@ class Vehicle {
     return steer;
   }
 
-  // Arriver doucement
+  // Comportement arrive : ralentir à l’approche
   arrive(target) {
     let desired = p5.Vector.sub(target, this.pos);
     let d = desired.mag();
@@ -49,12 +59,13 @@ class Vehicle {
     return steer;
   }
 
-  // Éviter les obstacles à l’avance avec un vecteur "ahead"
+  // Évitement d’obstacles par anticipation (look-ahead)
   avoid(obstacles) {
     let steer = createVector(0, 0);
     if (this.vel.magSq() === 0 || obstacles.length === 0) return steer;
 
-    let ahead = this.vel.copy().normalize().mult(60); // distance de look-ahead
+    // vecteur regard vers l’avant
+    let ahead = this.vel.copy().normalize().mult(60);
     let aheadPos = p5.Vector.add(this.pos, ahead);
 
     let mostThreatening = null;
@@ -77,7 +88,7 @@ class Vehicle {
     return steer;
   }
 
-  // Séparation simple entre véhicules
+  // Séparation (boids) : éviter les voisins trop proches
   separate(others) {
     let desiredSeparation = this.r * 2;
     let steer = createVector(0, 0);
@@ -105,7 +116,7 @@ class Vehicle {
     return steer;
   }
 
-  // Rester dans l'écran (clamp simple)
+  // Empêche de sortir de l’écran
   keepInside() {
     if (this.pos.x < this.r) this.pos.x = this.r;
     if (this.pos.x > width - this.r) this.pos.x = width - this.r;
@@ -113,29 +124,30 @@ class Vehicle {
     if (this.pos.y > height - this.r) this.pos.y = height - this.r;
   }
 
-  // Correction si on entre dans un obstacle
+  // Correction si un véhicule entre dans un obstacle
   resolveObstacleCollisions(obstacles) {
     for (let o of obstacles) {
       let dir = p5.Vector.sub(this.pos, o.pos);
       let dist = dir.mag();
       let minDist = this.r + o.r;
+
       if (dist < minDist) {
-        if (dist === 0) {
-          dir = p5.Vector.random2D();
-        } else {
-          dir.normalize();
-        }
+        if (dist === 0) dir = p5.Vector.random2D();
+        else dir.normalize();
+
         dir.mult(minDist);
         this.pos = p5.Vector.add(o.pos, dir);
-        this.vel.mult(0.5); // on ralentit un peu
+        this.vel.mult(0.5); // ralentissement après collision
       }
     }
   }
 
+  // Collision simple par distance
   collidesWith(other) {
     return p5.Vector.dist(this.pos, other.pos) < this.r + other.r;
   }
 
+  // Dessin générique (debug / fallback)
   show(colorFill = 255) {
     push();
     translate(this.pos.x, this.pos.y);
